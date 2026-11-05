@@ -30,7 +30,8 @@ function restrictDirection(resetRoute=true){
   const courier=field('courier'), direction=field('direction'), origin=field('origin'), destination=field('destination');
   const cap=['CAPEX','RADEX'].includes(courier.value);
   if(cap)direction.value='Incoming';
-  direction.querySelector('option[value="Outgoing"]').disabled=cap;
+  const outgoingOption=Array.from(direction.options).find(option=>option.value==='Outgoing');
+  if(outgoingOption)outgoingOption.disabled=cap;
   if(resetRoute){
     if(cap){origin.value='Manila Warehouse';destination.value='Bacolod Warehouse'}
     else if(direction.value==='Outgoing'){origin.value='Bacolod Warehouse';destination.value='Cebu Warehouse'}
