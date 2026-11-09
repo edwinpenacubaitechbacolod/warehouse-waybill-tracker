@@ -161,7 +161,233 @@ body.light .courier-tag{background:color-mix(in srgb,var(--c) 18%,#fff);color:#1
 .monitor-link .ml-full{margin-right:5px}
 @media(max-width:1100px){.monitor-link .ml-full{display:none}.monitor-link .ml-short{display:inline;margin-right:5px}}
 @media(max-width:410px){.head-actions .monitor-link{font-size:10px;padding:6px 8px;min-height:30px}}
-</style></head><body><header><div class="headinner"><div class="brand"><div><h1>Warehouse Waybill Tracker</h1><small class="logo-caption">BACOLOD WAREHOUSE · DFC / CAPEX / RADEX</small></div></div><div class="head-actions"><div class="panel workspace-panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><b id="connection">Connecting to Firebase…</b><div class="hint">Viewers do not need to sign in. Only the administrator signs in to edit. Records are publicly readable when Firestore rules allow it.</div></div><div><button id="login">Admin sign in</button> <button id="logout" class="hidden">Sign out</button> <button id="add" class="primary hidden">+ New waybill</button></div></div></div><button id="theme" type="button" aria-label="Toggle color theme">☀ Light mode</button><a class="monitor-link" href="https://edwinpenacubaitechbacolod.github.io/bacolod-warehouse-monitoring/" target="_blank" rel="noopener" title="DR and ST Warehouse Monitoring"><span class="ml-full">DR and ST Warehouse Monitoring</span><span class="ml-short">DR &amp; ST</span><span class="ml-arrow">→</span></a></div></div></header><main><p class="intro">Bacolod Warehouse waybill monitoring for dispatched shipments, receipts and follow-ups.</p><div class="section-label">Shipment overview</div><div class="stats" id="stats"></div><div class="section-label">Courier summary</div><div class="courier-grid" id="courierSummary"></div><div class="section-label">Waybill records <span id="monthIndicator" class="month-indicator">ALL MONTHS</span></div><div class="filter-groups" id="registerFilters"><nav id="tabs"></nav></div><div class="toolbar"><div class="search-field"><input id="search" aria-label="Search waybills" placeholder="Search waybill, courier, remarks..."></div><div class="month-field"><select id="monthFilter" aria-label="Filter by waybill month"><option value="">All months</option></select></div><select id="statusFilter"><option value="">All statuses</option><option>In Transit</option><option>Received</option><option>Legacy - Review</option></select><button id="export">Export CSV</button></div><section class="panel register-panel"><div class="register-header"><div><p class="table-title">Shipment register</p><p class="hint">One record per waybill · No individual DR entry required</p></div><span id="registerCount" class="register-count">0 records</span></div><div id="mobileRecords" class="mobile-records"></div><div class="tablewrap"><table><thead><tr><th data-sort="date" scope="col">Dispatch Date</th><th>Waybill No.</th><th data-sort="courier" scope="col">Courier</th><th>Route</th><th>Boxes Sent / Received</th><th>Warehouse Received</th><th data-sort="status" scope="col">Status</th><th data-sort="days" scope="col">Days (Transit / Elapsed)</th><th>Remarks</th><th>Last Updated</th><th id="editHead" class="hidden">Actions</th></tr></thead><tbody id="rows"></tbody></table></div><p class="hint" id="count"></p></section></main><footer class="creator-credit">Warehouse Waybill Tracker · Created by <strong>Edwin</strong></footer><dialog id="editor"><form id="form"><h2 id="formTitle">New waybill</h2><p class="hint">Record the dispatch date, then update the shipment when it arrives.</p><div class="form-section">01 · Shipment details</div><div class="fields"><label>Waybill / Dispatch Date<input name="date" type="date" required></label><label>Waybill Number<input name="waybill" maxlength="100" placeholder="Enter waybill reference" required></label><label>Courier<select name="courier"><option>DFC</option><option>CAPEX</option><option>RADEX</option></select></label><label>Direction<select name="direction"><option>Incoming</option><option>Outgoing</option></select></label><label>Origin Warehouse<select name="origin"><option>Cebu Warehouse</option><option>Manila Warehouse</option><option>Bacolod Warehouse</option><option>Iloilo Warehouse</option><option>Dumaguete Warehouse</option></select></label><label>Destination Warehouse<select name="destination"><option>Bacolod Warehouse</option><option>Cebu Warehouse</option><option>Manila Warehouse</option><option>Iloilo Warehouse</option><option>Dumaguete Warehouse</option></select></label><div class="form-section full">02 · Box information</div><label>Boxes Sent<input name="boxes" type="number" min="1" step="1" required></label><label id="actualWrap">Actual Boxes Received<input name="actual" type="number" min="0" step="1" placeholder="Optional"></label><div class="form-section full">03 · Delivery progress</div><label id="receivedWrap">Warehouse Received Date<input name="received" type="date"></label><label>Status<select name="status"><option>In Transit</option><option>Received</option></select></label><label class="full">Remarks<textarea name="remarks" rows="3"></textarea></label></div><div id="formHelp" class="hint" style="margin-top:12px"></div><div class="actions"><button type="button" id="cancel">Cancel</button><button class="primary" type="submit">Save waybill</button></div></form></dialog><script type="module">
+
+/* Space-saving records controls: filter tabs and search controls share one row */
+.register-controls{
+  display:grid;
+  grid-template-columns:minmax(390px,1fr) minmax(0,1.55fr);
+  align-items:center;
+  gap:14px;
+  margin:13px 0 10px;
+  padding:9px 11px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:color-mix(in srgb,var(--surface) 88%,var(--surface2));
+}
+.register-filter-side{min-width:0}
+.register-label{display:flex;align-items:center;gap:9px;margin:0 0 7px!important}
+.register-controls .month-indicator{margin-left:0}
+.register-controls #registerFilters{min-width:0}
+.register-controls #registerFilters nav{display:flex;flex-wrap:wrap;gap:5px;margin:0}
+.register-controls #registerFilters nav button{padding:7px 10px;min-height:31px;font-size:11px;border-radius:8px;white-space:nowrap}
+.register-toolbar{min-width:0;margin:0!important;display:grid;grid-template-columns:minmax(130px,1fr) minmax(112px,.62fr) minmax(105px,.58fr) auto;gap:6px}
+.register-toolbar input,.register-toolbar select,.register-toolbar button{min-width:0;min-height:34px;padding:7px 9px;font-size:11px;border-radius:8px}
+.register-toolbar .search-field input{width:100%}
+.register-toolbar .month-field select{width:100%}
+.register-toolbar #export{white-space:nowrap}
+@media(max-width:1050px){
+ .register-controls{grid-template-columns:1fr;gap:8px}
+ .register-label{margin-bottom:5px!important}
+}
+@media(max-width:700px){
+ .register-controls{padding:9px;gap:8px;margin:10px 0}
+ .register-controls #registerFilters nav{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}
+ .register-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+ .register-toolbar .search-field{grid-column:1/-1}
+ .register-toolbar .month-field{grid-column:1}
+ .register-toolbar #statusFilter{grid-column:2}
+ .register-toolbar #export{grid-column:2}
+}
+@media(max-width:390px){
+ .register-label{font-size:9px}
+ .register-controls #registerFilters nav button{padding:6px 8px;font-size:10px}
+ .register-toolbar{gap:5px}
+}
+
+
+/* Final alignment pass: unified waybill controls */
+.register-controls{
+  display:grid!important;
+  grid-template-columns:minmax(0, 1fr) minmax(0, 1.55fr)!important;
+  align-items:center!important;
+  gap:14px!important;
+  min-width:0;
+  padding:10px 11px!important;
+}
+.register-filter-side{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-self:stretch;
+  min-width:0;
+  gap:7px;
+}
+.register-label{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:wrap;
+  gap:8px!important;
+  min-height:20px;
+  margin:0!important;
+  line-height:1.2;
+}
+.register-controls .month-indicator{
+  display:inline-flex;
+  align-items:center;
+  min-height:22px;
+  margin:0!important;
+  padding:3px 8px;
+  line-height:1;
+}
+.register-controls #registerFilters{
+  display:block;
+  min-width:0;
+  width:100%;
+}
+.register-controls #registerFilters nav{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:nowrap!important;
+  gap:5px!important;
+  width:100%;
+  min-width:0;
+  margin:0!important;
+  overflow-x:auto;
+  scrollbar-width:thin;
+  padding:1px 1px 3px;
+}
+.register-controls #registerFilters nav button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  min-height:34px!important;
+  padding:7px 10px!important;
+  line-height:1;
+  font-size:11px!important;
+  border-radius:8px!important;
+  white-space:nowrap;
+}
+.register-toolbar{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) minmax(125px,.64fr) minmax(125px,.64fr) auto!important;
+  align-items:center!important;
+  align-content:center;
+  gap:7px!important;
+  width:100%;
+  min-width:0;
+  margin:0!important;
+}
+.register-toolbar .search-field,
+.register-toolbar .month-field{
+  position:relative;
+  display:flex;
+  align-items:center;
+  min-width:0;
+  width:100%;
+  height:36px;
+}
+.register-toolbar .search-field:before,
+.register-toolbar .month-field:before{
+  top:50%;
+  transform:translateY(-50%);
+  line-height:1;
+}
+.register-toolbar input,
+.register-toolbar select,
+.register-toolbar button{
+  display:flex;
+  align-items:center;
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:36px!important;
+  min-height:36px!important;
+  margin:0!important;
+  padding:7px 10px!important;
+  font-size:11px!important;
+  line-height:1.2!important;
+  border-radius:9px!important;
+}
+.register-toolbar .search-field input{
+  padding-left:34px!important;
+}
+.register-toolbar .month-field select{
+  padding-left:29px!important;
+  padding-right:26px!important;
+}
+.register-toolbar select{
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.register-toolbar #export{
+  width:auto;
+  min-width:76px;
+  justify-content:center;
+  white-space:nowrap;
+}
+@media(max-width:1050px){
+  .register-controls{
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:9px!important;
+  }
+  .register-filter-side{gap:6px}
+  .register-toolbar{
+    grid-template-columns:minmax(0,1.5fr) minmax(130px,.8fr) minmax(130px,.8fr) auto!important;
+  }
+}
+@media(max-width:700px){
+  .register-controls{
+    padding:9px!important;
+    gap:9px!important;
+    margin:10px 0!important;
+  }
+  .register-controls #registerFilters nav{
+    flex-wrap:nowrap!important;
+    overflow-x:auto;
+    padding:1px 1px 5px;
+  }
+  .register-toolbar{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;
+    gap:7px!important;
+  }
+  .register-toolbar .search-field{
+    grid-column:1/-1!important;
+    grid-row:1!important;
+  }
+  .register-toolbar .month-field{
+    grid-column:1!important;
+    grid-row:2!important;
+  }
+  .register-toolbar #statusFilter{
+    grid-column:2!important;
+    grid-row:2!important;
+  }
+  .register-toolbar #export{
+    grid-column:1/-1!important;
+    grid-row:3!important;
+    justify-self:end;
+    width:auto!important;
+    min-width:104px;
+  }
+}
+@media(max-width:390px){
+  .register-controls{padding:8px!important}
+  .register-controls #registerFilters nav button{
+    min-height:32px!important;
+    padding:6px 8px!important;
+    font-size:10px!important;
+  }
+  .register-toolbar input,
+  .register-toolbar select,
+  .register-toolbar button{
+    height:34px!important;
+    min-height:34px!important;
+    font-size:10.5px!important;
+  }
+}
+
+</style></head><body><header><div class="headinner"><div class="brand"><div><h1>Warehouse Waybill Tracker</h1><small class="logo-caption">BACOLOD WAREHOUSE · DFC / CAPEX / RADEX</small></div></div><div class="head-actions"><div class="panel workspace-panel"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><b id="connection">Connecting to Firebase…</b><div class="hint">Viewers do not need to sign in. Only the administrator signs in to edit. Records are publicly readable when Firestore rules allow it.</div></div><div><button id="login">Admin sign in</button> <button id="logout" class="hidden">Sign out</button> <button id="add" class="primary hidden">+ New waybill</button></div></div></div><button id="theme" type="button" aria-label="Toggle color theme">☀ Light mode</button><a class="monitor-link" href="https://edwinpenacubaitechbacolod.github.io/bacolod-warehouse-monitoring/" target="_blank" rel="noopener" title="DR and ST Warehouse Monitoring"><span class="ml-full">DR and ST Warehouse Monitoring</span><span class="ml-short">DR &amp; ST</span><span class="ml-arrow">→</span></a></div></div></header><main><p class="intro">Bacolod Warehouse waybill monitoring for dispatched shipments, receipts and follow-ups.</p><div class="section-label">Shipment overview</div><div class="stats" id="stats"></div><div class="section-label">Courier summary</div><div class="courier-grid" id="courierSummary"></div><div class="register-controls"><div class="register-filter-side"><div class="section-label register-label">Waybill records <span id="monthIndicator" class="month-indicator">ALL MONTHS</span></div><div class="filter-groups" id="registerFilters"><nav id="tabs"></nav></div></div><div class="toolbar register-toolbar"><div class="search-field"><input id="search" aria-label="Search waybills" placeholder="Search waybill, courier, remarks..."></div><div class="month-field"><select id="monthFilter" aria-label="Filter by waybill month"><option value="">All months</option></select></div><select id="statusFilter"><option value="">All statuses</option><option>In Transit</option><option>Received</option><option>Legacy - Review</option></select><button id="export">Export CSV</button></div></div><section class="panel register-panel"><div class="register-header"><div><p class="table-title">Shipment register</p><p class="hint">One record per waybill · No individual DR entry required</p></div><span id="registerCount" class="register-count">0 records</span></div><div id="mobileRecords" class="mobile-records"></div><div class="tablewrap"><table><thead><tr><th data-sort="date" scope="col">Dispatch Date</th><th>Waybill No.</th><th data-sort="courier" scope="col">Courier</th><th>Route</th><th>Boxes Sent / Received</th><th>Warehouse Received</th><th data-sort="status" scope="col">Status</th><th data-sort="days" scope="col">Days (Transit / Elapsed)</th><th>Remarks</th><th>Last Updated</th><th id="editHead" class="hidden">Actions</th></tr></thead><tbody id="rows"></tbody></table></div><p class="hint" id="count"></p></section></main><footer class="creator-credit">Warehouse Waybill Tracker · Created by <strong>Edwin</strong></footer><dialog id="editor"><form id="form"><h2 id="formTitle">New waybill</h2><p class="hint">Record the dispatch date, then update the shipment when it arrives.</p><div class="form-section">01 · Shipment details</div><div class="fields"><label>Waybill / Dispatch Date<input name="date" type="date" required></label><label>Waybill Number<input name="waybill" maxlength="100" placeholder="Enter waybill reference" required></label><label>Courier<select name="courier"><option>DFC</option><option>CAPEX</option><option>RADEX</option></select></label><label>Direction<select name="direction"><option>Incoming</option><option>Outgoing</option></select></label><label>Origin Warehouse<select name="origin"><option>Cebu Warehouse</option><option>Manila Warehouse</option><option>Bacolod Warehouse</option><option>Iloilo Warehouse</option><option>Dumaguete Warehouse</option></select></label><label>Destination Warehouse<select name="destination"><option>Bacolod Warehouse</option><option>Cebu Warehouse</option><option>Manila Warehouse</option><option>Iloilo Warehouse</option><option>Dumaguete Warehouse</option></select></label><div class="form-section full">02 · Box information</div><label>Boxes Sent<input name="boxes" type="number" min="1" step="1" required></label><label id="actualWrap">Actual Boxes Received<input name="actual" type="number" min="0" step="1" placeholder="Optional"></label><div class="form-section full">03 · Delivery progress</div><label id="receivedWrap">Warehouse Received Date<input name="received" type="date"></label><label>Status<select name="status"><option>In Transit</option><option>Received</option></select></label><label class="full">Remarks<textarea name="remarks" rows="3"></textarea></label></div><div id="formHelp" class="hint" style="margin-top:12px"></div><div class="actions"><button type="button" id="cancel">Cancel</button><button class="primary" type="submit">Save waybill</button></div></form></dialog><script type="module">
 // Public Firebase web configuration. Authorization is enforced by Firestore rules.
 const firebaseConfig={
   apiKey: "AIzaSyBbpod5xEoaqIyUtfiadvJ1_aFSDviuaGM", // Firebase public web configuration
